@@ -1,0 +1,184 @@
+## Practicing Topic Models
+
+#Change the library path
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(quanteda)
+library(topicmodels)
+library(lubridate)
+library(ggplot2)
+
+```
+
+```{r}
+data <- read.csv('./Data/Data_Class_ADL.csv')
+colnames(data)
+```
+
+```{r}
+dim(data)
+
+data <- data %>% dplyr::select('date','source.domain','originaltext') %>% mutate(date = ymd(date))  %>% mutate(text=originaltext) #Creating a new column to keep the data without alterations
+
+dim(data)
+
+```
+
+```{r}
+#Tokenisation the text
+toks <- tokens(data$text,
+               remove_punct = TRUE,
+               remove_symbols = TRUE,
+               remove_numbers = TRUE, #why?
+               remove_url = TRUE,
+               remove_separators = TRUE,
+               split_hyphens = FALSE,
+               include_docvars = TRUE, #why?
+               padding = FALSE) %>%
+  tokens_remove(stopwords(language = "english")) %>% tokens_select(min_nchar = 2)
+
+
+head(toks) 
+
+```
+
+Now creating the document feature matrix
+
+```{r}
+dfm_matrix = dfm(toks)
+dim(dfm_matrix)
+#The vocabulary here is the size of 9225, with 1500 documents
+rm(toks)
+```
+
+Estimating the LDA posterior
+
+```{r}
+
+lda_model <- LDA(dfm_matrix,5, control = list(seed = 1234))
+#This would estimate the latent variables given the coccurences, vocabulary given my dfm_matrix via Gibbs sampling
+
+lda_model@Dim #Number of documents and vocab the model was fitted upon
+lda_model@k #Number of topics
+wordList <- lda_model@terms
+
+
+
+TopicDist <- lda_model@beta
+TopicDist <- t(TopicDist)
+dim(TopicDist)
+TopicDist <- exp(TopicDist)
+colnames(TopicDist) <- c('Topic 1','Topic 2','Topic 3','Topic 4','Topic 5')
+
+head(TopicDist) #Topic Distribution over the vocabulary
+```
+
+```{r-Topics TopWords}
+
+for(i in seq(1,(dim(TopicDist)[2]),1)){
+  print(i)
+  if(i > 1){
+    Topic_Index_Ordered <- TopicDist[,i] %>% order(decreasing = TRUE) #Topic_Index_Ordered
+    Topic_Prob <- TopicDist[Topic_Index_Ordered,i] 
+    TopWords_temp <- cbind(i,Topic_Index_Ordered[1:10],Topic_Prob[1:10])
+    TopWords <- rbind(TopWords,TopWords_temp)
+  }
+  else {
+    Topic_Index_Ordered <- TopicDist[,i] %>% order(decreasing = TRUE)
+    Topic_Prob <- TopicDist[Topic_Index_Ordered,1]
+        print(head(Topic_Prob))
+    TopWords <- cbind(i,Topic_Index_Ordered[1:10],Topic_Prob[1:10])
+  }
+    
+}
+#This could be better with just the top 10 words
+#wordList <- lda_model@terms
+#TopWords <- cbind(TopWords, wordList[TopWords[,2]])
+colnames(TopWords) <- c('Topic Id','Index','Probability')
+TopWords #Per topic top words
+```
+
+```{r}
+#What are the top words here
+Topic1 <- wordList[TopWords[,2]][1:10]
+Topic2 <- wordList[TopWords[,2]][11:20]
+Topic3 <- wordList[TopWords[,2]][21:30]
+Topic4 <- wordList[TopWords[,2]][31:40]
+Topic5 <- wordList[TopWords[,2]][41:50]
+
+# > Try if with the sampling methods would the topic assignment change
+
+colnames(TopicDist) <- c('Variants','Vaccine_Mandates','Pandemic_Regulations','Relief_Stimulus','Covid19_And_Government')
+head(TopicDist)
+
+TopWordsPerTopic <- cbind(Topic1,Topic2,Topic3,Topic4,Topic5)
+head(TopWordsPerTopic)
+colnames(TopWordsPerTopic) <- c('Variants','Vaccine_Mandates','Pandemic_Regulations','Relief_Stimulus','Covid19_And_Government')
+```
+
+
+Now lets get the distribution over topics for each document.
+
+```{r}
+
+temp <- lda_model@gamma
+head(temp)
+dim(temp)
+
+DocDist <- lda_model@gamma
+colnames(DocDist) <- c('Variants','Vaccine_Mandates','Pandemic_Regulations','Relief_Stimulus','Covid19_And_Government')
+head(DocDist) #This is distribution over topics for a particular distribution, likely sparse
+
+#Lets bind this distribution of topic over the previous df
+
+LabeledDf <- data %>% select(date, source.domain,originaltext)
+LabeledDf <- cbind(LabeledDf, DocDist)
+dim(LabeledDf)
+colnames(LabeledDf)
+
+length(unique(LabeledDf$date))
+length(unique(LabeledDf$source.domain))
+head(unique(LabeledDf$source.domain))
+```
+
+```{r}
+#Lets compare the topics coverage by news source
+temp <- LabeledDf %>% group_by(source.domain) %>% count()
+head(temp)
+temp <- temp %>% arrange(desc(n))
+temp[1:20,]#Most articles in the corpos are from cnn, nbc, nytimes,///
+
+#Lets Visualise the distribution over Topics
+
+Source_1 <- LabeledDf %>% filter(source.domain == 'cnn.com') %>% select(Variants,Vaccine_Mandates,Pandemic_Regulations,Relief_Stimulus,Covid19_And_Government)
+dim(Source_1)
+hist(Source_1$Covid19_And_Government) 
+#It seems Covid19_And_Government was covered a lot in Cnn
+
+
+Source_2 <- LabeledDf %>% filter(source.domain == 'businessinsider.com') %>% select(Variants,Vaccine_Mandates,Pandemic_Regulations,Relief_Stimulus,Covid19_And_Government)
+dim(Source_2)
+hist(Source_2$Relief_Stimulus)
+```
+
+```{r}
+#Most of these distributions are not normal, mean might not be the right measure, lets see tendancies, 
+#Here using sum but that might be with low alpha so less topics per doc, as sum > topic with high prob or less prob 
+#more doc > Also more docs would lead to more sum, this would not be comparable. // Measure it not right, this is mean
+DateSummary <- LabeledDf %>%  
+                  group_by(date) %>% 
+                  summarise(n = n(), Variant_M = mean(Variants), Mandates_M = mean(Vaccine_Mandates), Regulations_M = mean(Pandemic_Regulations), Stimulus_M = mean(Relief_Stimulus), Government_M = mean(Covid19_And_Government) ) 
+dim(DateSummary)
+head(DateSummary)
+
+#Lets see the number of articles around covid over dates
+plot(DateSummary$date, DateSummary$Variant_M, type = 'l')
+```
+
+```{r}
+g <- ggplot(DateSummary, aes(date,Stimulus_M)) + geom_line()
+plot(g)
+```
