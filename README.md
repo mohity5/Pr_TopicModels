@@ -6,8 +6,6 @@ The notebook contains:
 + Top words for each topic
 + Exploring topic trends
 
-[Link to summer school github repository](https://github.com/socialcomquant/summer-school-2022)
-
-[Link to workshop github repository](https://github.com/socialcomquant/summer-school-2022/tree/main/Day2_Lokmanoglu_TextMiningR)
+[Link to summer school github repository](https://github.com/socialcomquant/summer-school-2022) | [Link to workshop github repository](https://github.com/socialcomquant/summer-school-2022/tree/main/Day2_Lokmanoglu_TextMiningR)
 
 Please check the licence in the **Terms of Use** in the Summer School repository.
