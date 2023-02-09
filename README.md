@@ -1,5 +1,5 @@
 # TopicModels
-This notebook for practicing Topic Modelling (Latent Dirichlet Allocation) via workshop at SCQ CSS 2022 Summer School.
+This notebook for practicing Topic Modelling (Latent Dirichlet Allocation) via workshop lecture at [SCQ CSS 2022 Summer School](https://socialcomquant.ku.edu.tr/2022-ss-lectures/).
 
 The notebook contains:
 + Preprocessing the data
